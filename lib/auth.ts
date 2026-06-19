@@ -46,8 +46,9 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     jwt({ token, user }) {
       if (user) {
+        const userWithAvatar = user as { avatar?: string | null };
         token.userId = user.id;
-        token.avatar = user.avatar;
+        token.avatar = userWithAvatar.avatar;
       }
       return token;
     },
