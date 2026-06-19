@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useSession } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import AddMemberModal from '@/components/groups/AddMemberModal';
+import GroupHeader from '@/components/groups/GroupHeader';
+import GroupDetailSkeleton from '@/components/groups/GroupDetailSkeleton';
+import MemberList from '@/components/groups/MemberList';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import MemberList from '@/components/groups/MemberList';
 
 type GroupMember = {
   userId: {
@@ -35,8 +40,12 @@ type Group = {
 
 export default function GroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
+  const router = useRouter();
   const { data: session, status } = useSession();
   const [group, setGroup] = useState<Group | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorState, setErrorState] = useState<'not-found' | 'unauthorized' | 'generic' | null>(null);
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
 
   useEffect(() => {
     let ignore = false;
@@ -46,11 +55,30 @@ export default function GroupDetailPage() {
         return;
       }
 
-      const response = await fetch(`/api/groups/${groupId}`);
-      const data = await response.json();
+      try {
+        const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}`);
+        const data = await response.json();
 
-      if (response.ok && !ignore) {
-        setGroup(data);
+        if (!ignore) {
+          if (response.ok) {
+            setGroup(data);
+            setErrorState(null);
+          } else if (response.status === 404) {
+            setErrorState('not-found');
+          } else if (response.status === 403) {
+            setErrorState('unauthorized');
+          } else {
+            setErrorState('generic');
+          }
+        }
+      } catch {
+        if (!ignore) {
+          setErrorState('generic');
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoading(false);
+        }
       }
     }
 
@@ -61,23 +89,85 @@ export default function GroupDetailPage() {
     };
   }, [groupId]);
 
+  const refetchGroup = async () => {
+    if (!groupId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setGroup(data);
+        setErrorState(null);
+      } else if (response.status === 404) {
+        setErrorState('not-found');
+      } else if (response.status === 403) {
+        setErrorState('unauthorized');
+      } else {
+        setErrorState('generic');
+      }
+    } catch {
+      setErrorState('generic');
+    }
+  };
+
   const handleRemoveMember = async (userId: string) => {
-    const response = await fetch(`/api/groups/${groupId}/members/${userId}`, {
+    const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, {
       method: 'DELETE',
     });
 
     if (response.ok) {
-      const refetchResponse = await fetch(`/api/groups/${groupId}`);
-      const refetchData = await refetchResponse.json();
-
-      if (refetchResponse.ok) {
-        setGroup(refetchData);
-      }
+      await refetchGroup();
     }
   };
 
-  if (status === 'loading' || !session?.user?.id || !group) {
-    return null;
+  const handleDeleteGroup = async () => {
+    const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}`, {
+      method: 'DELETE',
+    });
+
+    if (response.ok) {
+      router.push('/groups');
+    }
+  };
+
+  if (!isLoading && errorState === 'not-found') {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center px-4 py-12 text-center">
+        <h2 className="mb-2 text-2xl font-semibold">Group not found</h2>
+        <p className="mb-6 max-w-sm text-muted-foreground">This group may have been deleted or the link is incorrect.</p>
+        <Button asChild>
+          <Link href="/groups">Back to groups</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!isLoading && errorState === 'unauthorized') {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center px-4 py-12 text-center">
+        <h2 className="mb-2 text-2xl font-semibold">Access denied</h2>
+        <p className="mb-6 max-w-sm text-muted-foreground">You&apos;re not authorized to view this group.</p>
+        <Button asChild>
+          <Link href="/groups">Back to groups</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!isLoading && errorState === 'generic') {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center px-4 py-12 text-center">
+        <h2 className="mb-2 text-2xl font-semibold">Something went wrong</h2>
+        <Button onClick={refetchGroup}>Try again</Button>
+      </div>
+    );
+  }
+
+  if (isLoading || status === 'loading' || !session?.user?.id || !group) {
+    return <GroupDetailSkeleton />;
   }
 
   const currentUserId = (session.user as { id: string }).id;
@@ -86,7 +176,18 @@ export default function GroupDetailPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-6">
-      {/* GroupHeader component goes here */}
+      <GroupHeader
+        group={group}
+        currentUserRole={myRole}
+        onAddMemberClick={() => setAddMemberOpen(true)}
+        onDeleteGroup={handleDeleteGroup}
+      />
+      <AddMemberModal
+        open={addMemberOpen}
+        onOpenChange={setAddMemberOpen}
+        groupId={groupId}
+        onSuccess={refetchGroup}
+      />
 
       <aside className="rounded-lg border bg-card p-6 text-card-foreground shadow-xs">
         <MemberList

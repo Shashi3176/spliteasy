@@ -13,6 +13,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import CreateGroupModal from '@/components/groups/CreateGroupModal';
+import EmptyGroupsState from '@/components/groups/EmptyGroupsState';
+import GroupCardSkeleton from '@/components/groups/GroupCardSkeleton';
 
 type Group = {
   _id: string;
@@ -26,23 +28,43 @@ type Group = {
 export default function GroupsPage() {
   const [groups, setGroups] = useState<Group[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   const refetchGroups = async () => {
-    const response = await fetch('/api/groups');
-    const data = await response.json();
-
-    if (response.ok) {
-      setGroups(data);
-    }
-  };
-
-  useEffect(() => {
-    async function loadGroups() {
+    setIsLoading(true);
+    setFetchError(false);
+    try {
       const response = await fetch('/api/groups');
       const data = await response.json();
 
       if (response.ok) {
         setGroups(data);
+      } else {
+        setFetchError(true);
+      }
+    } catch {
+      setFetchError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    async function loadGroups() {
+      try {
+        const response = await fetch('/api/groups');
+        const data = await response.json();
+
+        if (response.ok) {
+          setGroups(data);
+        } else {
+          setFetchError(true);
+        }
+      } catch {
+        setFetchError(true);
+      } finally {
+        setIsLoading(false);
       }
     }
 
@@ -69,7 +91,26 @@ export default function GroupsPage() {
         onSuccess={refetchGroups}
       />
 
-      {groups.length > 0 && (
+      {fetchError && (
+        <div className="flex min-h-[300px] flex-col items-center justify-center px-4 py-12 text-center">
+          <h2 className="mb-2 text-2xl font-semibold">Could not load your groups</h2>
+          <Button onClick={refetchGroups}>Try again</Button>
+        </div>
+      )}
+
+      {!fetchError && isLoading && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <GroupCardSkeleton key={i} />
+          ))}
+        </div>
+      )}
+
+      {!fetchError && !isLoading && groups.length === 0 && (
+        <EmptyGroupsState onCreateClick={() => setIsModalOpen(true)} />
+      )}
+
+      {!isLoading && !fetchError && groups.length > 0 && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {groups.map((group) => (
             <Link key={group._id} href={`/groups/${group._id}`}>
