@@ -241,6 +241,7 @@ return () => {
               setSelectedExpenseId(expense._id);
               setDetailModalOpen(true);
             }}
+            onAddExpenseClick={() => setAddExpenseOpen(true)}
           />
           <ExpenseDetailModal
             expenseId={selectedExpenseId}
@@ -262,6 +263,9 @@ return () => {
               });
               setDetailModalOpen(false);
               setAddExpenseOpen(true);
+            }}
+            onDeleted={() => {
+              setExpenseKey((k) => k + 1);
             }}
           />
           <AddExpenseModal

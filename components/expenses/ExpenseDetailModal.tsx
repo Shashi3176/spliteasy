@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 import { Receipt, Utensils, Plane, Hotel } from 'lucide-react';
 import {
   Dialog,
@@ -12,6 +13,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,6 +61,7 @@ type ExpenseDetailModalProps = {
   onOpenChange: (open: boolean) => void;
   canEdit?: boolean;
   onEdit?: (expense: Expense) => void;
+  onDeleted?: () => void;
 };
 
 function getCategoryIcon(category: Expense['category']) {
@@ -80,12 +93,14 @@ function getDisplayName(userId: Expense['splitAmong'][0]['userId']) {
   return userId.name || userId.email || 'User';
 }
 
-export default function ExpenseDetailModal({ expenseId, open, onOpenChange, canEdit, onEdit }: ExpenseDetailModalProps) {
+export default function ExpenseDetailModal({ expenseId, open, onOpenChange, canEdit, onEdit, onDeleted }: ExpenseDetailModalProps) {
   const { data: session } = useSession();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const [expense, setExpense] = useState<Expense | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const fetchExpense = useCallback(async () => {
     if (!expenseId) {
@@ -120,9 +135,49 @@ export default function ExpenseDetailModal({ expenseId, open, onOpenChange, canE
     if (!open) {
       setExpense(null);
       setError(null);
+      setDeleteError(null);
     }
   }, [open]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const handleDelete = async () => {
+    if (!expenseId) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetch(`/api/expenses/${encodeURIComponent(expenseId)}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('Expense deleted');
+        onOpenChange(false);
+        onDeleted?.();
+      } else {
+        let message = 'Failed to delete expense. Please try again.';
+        if (response.status === 403) {
+          message = 'You do not have permission to delete this expense.';
+        } else {
+          try {
+            const data = await response.json();
+            message = data.error || message;
+          } catch {
+            // ignore parse error
+          }
+        }
+        setDeleteError(message);
+        toast.error("Couldn't delete expense", { description: message });
+      }
+    } catch {
+      const message = 'Failed to delete expense. Please try again.';
+      setDeleteError(message);
+      toast.error("Couldn't delete expense", { description: message });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (!expenseId) {
     return null;
@@ -234,7 +289,34 @@ export default function ExpenseDetailModal({ expenseId, open, onOpenChange, canE
                   Edit
                 </Button>
               )}
-              {/* Delete button will go here in future tasks */}
+              {canEdit && expense && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">Delete</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this expense?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the expense and its split details.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {deleteError && (
+                      <p className="text-sm text-destructive">{deleteError}</p>
+                    )}
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? 'Deleting...' : 'Delete'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </DialogFooter>
           </div>
         ) : null}

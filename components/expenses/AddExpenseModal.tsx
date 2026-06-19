@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -215,10 +216,22 @@ export default function AddExpenseModal({
         throw new Error(data.error || `Failed to ${isEditing ? 'update' : 'create'} expense`);
       }
 
+      if (isEditing) {
+        toast.success('Expense updated');
+      } else {
+        toast.success('Expense added', {
+          description: `${description.trim()} - ₹${numericAmount.toFixed(2)}`,
+        });
+      }
+
       onOpenChange(false);
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Failed to ${isEditing ? 'update' : 'create'} expense`);
+      const message = err instanceof Error ? err.message : `Failed to ${isEditing ? 'update' : 'create'} expense`;
+      setError(message);
+      toast.error('Something went wrong', {
+        description: message,
+      });
     } finally {
       setIsSubmitting(false);
     }
