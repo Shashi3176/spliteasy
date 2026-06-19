@@ -1,10 +1,45 @@
-import mongoose, { Schema, model, models } from 'mongoose';
+import mongoose, { Schema, models, model, Model, Document } from 'mongoose';
 
-const GroupSchema = new Schema(
+export interface IMember {
+  userId: mongoose.Types.ObjectId;
+  role: 'admin' | 'member';
+  joinedAt: Date;
+}
+
+export interface IGroup extends Document {
+  name: string;
+  description?: string;
+  currency: string;
+  members: IMember[];
+  createdBy: mongoose.Types.ObjectId;
+  createdAt: Date;
+}
+
+const memberSchema = new Schema<IMember>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+    },
+    role: {
+      type: String,
+      enum: ['admin', 'member'],
+      default: 'member',
+    },
+    joinedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
+
+const groupSchema = new Schema<IGroup>(
   {
     name: {
       type: String,
-      required: true,
+      required: [true, 'Please provide a group name'],
       trim: true,
     },
     description: {
@@ -15,25 +50,7 @@ const GroupSchema = new Schema(
       type: String,
       default: 'INR',
     },
-    members: [
-      {
-        userId: {
-          type: Schema.Types.ObjectId,
-          ref: 'User',
-          required: true,
-        },
-        role: {
-          type: String,
-          enum: ['admin', 'member'],
-          required: true,
-          default: 'member',
-        },
-        joinedAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
+    members: [memberSchema],
     createdBy: {
       type: Schema.Types.ObjectId,
       ref: 'User',
@@ -45,7 +62,9 @@ const GroupSchema = new Schema(
       createdAt: true,
       updatedAt: false,
     },
-  },
+  }
 );
 
-export const groups = models.groups || model('groups', GroupSchema);
+const Group: Model<IGroup> = models.Group || model<IGroup>('Group', groupSchema);
+
+export default Group;
