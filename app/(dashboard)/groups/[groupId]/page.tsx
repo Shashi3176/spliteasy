@@ -13,6 +13,8 @@ import ExpenseDetailModal from '@/components/expenses/ExpenseDetailModal';
 import GroupHeader from '@/components/groups/GroupHeader';
 import GroupDetailSkeleton from '@/components/groups/GroupDetailSkeleton';
 import MemberList from '@/components/groups/MemberList';
+import BalancesView from '@/components/settlements/BalancesView';
+import SettlementSuggestions from '@/components/settlements/SettlementSuggestions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -64,6 +66,20 @@ export default function GroupDetailPage() {
     splitAmong: Array<{ userId: string; amount: number }>;
   }>(null);
 
+  const [settlementsData, setSettlementsData] = useState<{
+    balances: Array<{ userId: string; amount: number }>;
+    greedy: { transactions: Array<{ from: string; to: string; amount: number }>; count: number; timeMs: number };
+    optimal: { transactions: Array<{ from: string; to: string; amount: number }>; count: number; timeMs: number } | { skipped: true; reason: string };
+    history: Array<{
+      _id: string;
+      from: { _id: string; name?: string; avatar?: string | null };
+      to: { _id: string; name?: string; avatar?: string | null };
+      amount: number;
+      status: 'pending' | 'completed';
+      createdAt: string;
+    }>;
+  } | null>(null);
+
   useEffect(() => {
     let ignore = false;
 
@@ -101,9 +117,29 @@ export default function GroupDetailPage() {
 
     loadGroup();
 
-return () => {
+    return () => {
       ignore = true;
     };
+  }, [groupId]);
+
+  async function fetchSettlements() {
+    if (!groupId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/settlements?groupId=${encodeURIComponent(groupId)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setSettlementsData(data);
+      }
+    } catch {
+      // Silently fail
+    }
+  }
+
+  useEffect(() => {
+    fetchSettlements();
   }, [groupId]);
 
   const refetchGroup = async () => {
@@ -292,23 +328,43 @@ return () => {
         </TabsContent>
 
         <TabsContent value="balances">
-          <Card>
-            <CardHeader>
-              <CardTitle>Balances</CardTitle>
-              <CardDescription>Balance calculations coming soon</CardDescription>
-            </CardHeader>
-            <CardContent>Balance calculations coming soon</CardContent>
-          </Card>
+          <BalancesView
+            balances={
+              settlementsData?.balances.map((b) => {
+                const member = group?.members.find((m) => m.userId._id === b.userId)?.userId;
+                return {
+                  userId: b.userId,
+                  name: member?.name || member?.email || 'Unknown',
+                  avatar: member?.avatar,
+                  netBalance: b.amount,
+                };
+              }) || []
+            }
+          />
         </TabsContent>
 
         <TabsContent value="settlements">
-          <Card>
-            <CardHeader>
-              <CardTitle>Settlements</CardTitle>
-              <CardDescription>Settlement tracking coming soon</CardDescription>
-            </CardHeader>
-            <CardContent>Settlement tracking coming soon</CardContent>
-          </Card>
+          {settlementsData ? (
+            <SettlementSuggestions
+              groupId={groupId}
+              greedy={settlementsData.greedy}
+              optimal={settlementsData.optimal}
+              groupMembers={group?.members.map((m) => ({
+                userId: m.userId._id,
+                name: m.userId.name || m.userId.email || 'Unknown',
+                avatar: m.userId.avatar,
+              })) || []}
+              onSettlementsSaved={fetchSettlements}
+              balancesCount={settlementsData.balances.length}
+            />
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Settlements</CardTitle>
+                <CardDescription>Loading suggestions...</CardDescription>
+              </CardHeader>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="activity">

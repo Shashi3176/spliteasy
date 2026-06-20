@@ -1,6 +1,17 @@
-import mongoose, { Schema, model, models } from 'mongoose';
+import mongoose, { Schema, model, models, Model, Document } from 'mongoose';
 
-const SettlementSchema = new Schema(
+export interface ISettlement extends Document {
+  groupId: mongoose.Types.ObjectId;
+  from: mongoose.Types.ObjectId;
+  to: mongoose.Types.ObjectId;
+  amount: number;
+  algorithmUsed: 'greedy' | 'optimal';
+  status: 'pending' | 'completed';
+  settledAt: Date | null;
+  createdAt: Date;
+}
+
+const SettlementSchema = new Schema<ISettlement>(
   {
     groupId: {
       type: Schema.Types.ObjectId,
@@ -26,7 +37,6 @@ const SettlementSchema = new Schema(
       type: String,
       enum: ['greedy', 'optimal'],
       required: true,
-      default: 'greedy',
     },
     status: {
       type: String,
@@ -47,4 +57,6 @@ const SettlementSchema = new Schema(
   },
 );
 
-export const settlements = models.settlements || model('settlements', SettlementSchema);
+const Settlement: Model<ISettlement> = models.Settlement || model<ISettlement>('Settlement', SettlementSchema);
+
+export default Settlement;
