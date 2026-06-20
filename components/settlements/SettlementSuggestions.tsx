@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import SettlementCard from '@/components/settlements/SettlementCard';
 
 type Transaction = {
   from: string;
@@ -42,6 +43,11 @@ function getMemberName(userId: string, members: SettlementSuggestionsProps['grou
   return member?.name || 'Unknown';
 }
 
+function getMemberAvatar(userId: string, members: SettlementSuggestionsProps['groupMembers']) {
+  const member = members.find((m) => m.userId === userId);
+  return member?.avatar || null;
+}
+
 export default function SettlementSuggestions({
   groupId,
   greedy,
@@ -64,7 +70,6 @@ export default function SettlementSuggestions({
     : 0;
 
   const canSelectOptimal = !('skipped' in optimal);
-  const optimalSavings = 'skipped' in optimal ? 0 : greedy.count - optimal.count;
 
   const handleSave = async () => {
     if (selectedTransactions.length === 0) {
@@ -171,13 +176,16 @@ export default function SettlementSuggestions({
             {greedy.transactions.length === 0 ? (
               <p className="text-sm text-muted-foreground">No transactions needed</p>
             ) : (
-              <ul className="space-y-1 text-sm">
+              <div className="space-y-2">
                 {greedy.transactions.map((t, i) => (
-                  <li key={i} className="text-muted-foreground">
-                    {getMemberName(t.from, groupMembers)} → {getMemberName(t.to, groupMembers)}: ₹{t.amount.toFixed(2)}
-                  </li>
+                  <SettlementCard
+                    key={i}
+                    from={{ name: getMemberName(t.from, groupMembers), avatar: getMemberAvatar(t.from, groupMembers) }}
+                    to={{ name: getMemberName(t.to, groupMembers), avatar: getMemberAvatar(t.to, groupMembers) }}
+                    amount={t.amount}
+                  />
                 ))}
-              </ul>
+              </div>
             )}
           </div>
 
@@ -188,13 +196,16 @@ export default function SettlementSuggestions({
             ) : optimal.transactions.length === 0 ? (
               <p className="text-sm text-muted-foreground">No transactions needed</p>
             ) : (
-              <ul className="space-y-1 text-sm">
+              <div className="space-y-2">
                 {optimal.transactions.map((t, i) => (
-                  <li key={i} className="text-muted-foreground">
-                    {getMemberName(t.from, groupMembers)} → {getMemberName(t.to, groupMembers)}: ₹{t.amount.toFixed(2)}
-                  </li>
+                  <SettlementCard
+                    key={i}
+                    from={{ name: getMemberName(t.from, groupMembers), avatar: getMemberAvatar(t.from, groupMembers) }}
+                    to={{ name: getMemberName(t.to, groupMembers), avatar: getMemberAvatar(t.to, groupMembers) }}
+                    amount={t.amount}
+                  />
                 ))}
-              </ul>
+              </div>
             )}
           </div>
         </div>

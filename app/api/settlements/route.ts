@@ -27,11 +27,14 @@ type SkippedOptimal = {
   reason: string;
 };
 
+type SettlementDoc = any;
+
 type APIResponse = {
   balances: Balance[];
   greedy: GreedyResponse;
   optimal: OptimalResponse | SkippedOptimal;
-  history: any[];
+  history: SettlementDoc[];
+  beforeEdges: Transaction[];
 };
 
 // Note: This does not check for or prevent duplicate/overlapping settlement submissions
@@ -75,6 +78,22 @@ export async function GET(request: Request) {
     }
 
     const expenses = await Expense.find({ groupId }).sort({ date: -1 });
+
+    const beforeEdges: Transaction[] = [];
+    for (const expense of expenses) {
+      const paidById = expense.paidBy.toString();
+      const splitItems = expense.splitAmong ?? [];
+      for (const split of splitItems) {
+        if (split.userId.toString() !== paidById) {
+          beforeEdges.push({
+            from: split.userId.toString(),
+            to: paidById,
+            amount: split.amount,
+          });
+        }
+      }
+    }
+
     const { balances } = buildBalancesFromExpenses(groupId, expenses);
 
     const greedyResult = await runGreedy(balances);
@@ -111,6 +130,7 @@ export async function GET(request: Request) {
       greedy,
       optimal,
       history,
+      beforeEdges,
     };
 
     return NextResponse.json(response);

@@ -15,6 +15,10 @@ import GroupDetailSkeleton from '@/components/groups/GroupDetailSkeleton';
 import MemberList from '@/components/groups/MemberList';
 import BalancesView from '@/components/settlements/BalancesView';
 import SettlementSuggestions from '@/components/settlements/SettlementSuggestions';
+import SettlementHistory from '@/components/settlements/SettlementHistory';
+import DebtGraph from '@/components/settlements/DebtGraph';
+import SettledUpState from '@/components/settlements/SettledUpState';
+import GroupAnalytics from '@/components/analytics/GroupAnalytics';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -78,6 +82,7 @@ export default function GroupDetailPage() {
       status: 'pending' | 'completed';
       createdAt: string;
     }>;
+    beforeEdges: Array<{ from: string; to: string; amount: number }>;
   } | null>(null);
 
   useEffect(() => {
@@ -227,6 +232,10 @@ export default function GroupDetailPage() {
   const myRole =
     group.members.find((member) => member.userId._id === currentUserId)?.role ?? 'member';
 
+  const allSettled =
+    settlementsData?.balances.every((b) => Math.abs(b.amount) < 0.01) &&
+    (settlementsData?.history?.filter((h) => h.status === 'pending').length ?? 0) === 0;
+
   return (
     <div className="mx-auto max-w-6xl space-y-6 py-6">
       <GroupHeader
@@ -345,18 +354,44 @@ export default function GroupDetailPage() {
 
         <TabsContent value="settlements">
           {settlementsData ? (
-            <SettlementSuggestions
-              groupId={groupId}
-              greedy={settlementsData.greedy}
-              optimal={settlementsData.optimal}
-              groupMembers={group?.members.map((m) => ({
-                userId: m.userId._id,
-                name: m.userId.name || m.userId.email || 'Unknown',
-                avatar: m.userId.avatar,
-              })) || []}
-              onSettlementsSaved={fetchSettlements}
-              balancesCount={settlementsData.balances.length}
-            />
+            allSettled ? (
+              <SettledUpState />
+            ) : (
+              <div className="space-y-6">
+                <DebtGraph
+                  groupMembers={group?.members.map((m) => ({
+                    userId: m.userId._id,
+                    name: m.userId.name || m.userId.email || 'Unknown',
+                    avatar: m.userId.avatar,
+                  })) || []}
+                  beforeEdges={settlementsData.beforeEdges}
+                  afterEdges={
+                    settlementsData.optimal && 'skipped' in settlementsData.optimal
+                      ? settlementsData.greedy.transactions
+                      : settlementsData.optimal && 'transactions' in settlementsData.optimal
+                        ? settlementsData.optimal.transactions
+                        : settlementsData.greedy.transactions
+                  }
+                />
+
+                <SettlementSuggestions
+                  groupId={groupId}
+                  greedy={settlementsData.greedy}
+                  optimal={settlementsData.optimal}
+                  groupMembers={group?.members.map((m) => ({
+                    userId: m.userId._id,
+                    name: m.userId.name || m.userId.email || 'Unknown',
+                    avatar: m.userId.avatar,
+                  })) || []}
+                  onSettlementsSaved={fetchSettlements}
+                  balancesCount={settlementsData.balances.length}
+                />
+
+                {settlementsData.history && settlementsData.history.length > 0 ? (
+                  <SettlementHistory history={settlementsData.history} onRefetch={fetchSettlements} />
+                ) : null}
+              </div>
+            )
           ) : (
             <Card>
               <CardHeader>
