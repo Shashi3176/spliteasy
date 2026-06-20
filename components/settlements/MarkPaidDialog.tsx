@@ -13,6 +13,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 type MarkPaidDialogProps = {
   settlementId: string;
@@ -42,6 +43,7 @@ export default function MarkPaidDialog({
 }: MarkPaidDialogProps) {
   const [isConfirming, setIsConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleOpenChange = (nextOpen: boolean) => {
     onOpenChange(nextOpen);
@@ -70,13 +72,17 @@ export default function MarkPaidDialog({
         }
 
         setError(message);
+        toast({ title: 'Settlement not paid', description: message, variant: 'destructive' });
         return;
       }
 
       onOpenChange(false);
       onConfirmed();
+      toast({ title: 'Settlement paid' });
     } catch {
-      setError('Failed to mark settlement as paid');
+      const message = 'Failed to mark settlement as paid';
+      setError(message);
+      toast({ title: 'Settlement not paid', description: message, variant: 'destructive' });
     } finally {
       setIsConfirming(false);
     }

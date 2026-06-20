@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
 
 type GroupHeaderProps = {
   group: {
@@ -41,6 +42,7 @@ export default function GroupHeader({
 }: GroupHeaderProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
   const description = group.description?.trim();
 
   async function handleDeleteGroup() {
@@ -48,6 +50,10 @@ export default function GroupHeader({
 
     try {
       await onDeleteGroup();
+      toast({ title: 'Group deleted' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete group';
+      toast({ title: 'Group not deleted', description: message, variant: 'destructive' });
     } finally {
       setIsDeleting(false);
     }

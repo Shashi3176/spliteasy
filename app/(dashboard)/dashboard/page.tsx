@@ -1,6 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users } from 'lucide-react';
 import { connectDB } from '@/lib/db';
 import Group from '@/models/Group';
 import Expense from '@/models/Expense';
@@ -74,6 +75,15 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
       {/* Groups section will appear here */}
+      {stats.activeGroupsCount === 0 && (
+        <div className="flex min-h-[200px] flex-col items-center justify-center rounded-lg border border-dashed py-8 text-center">
+          <Users className="mb-3 size-10 text-muted-foreground" />
+          <h3 className="text-sm font-medium">You&apos;re not part of any groups yet</h3>
+<p className="mt-1 max-w-xs text-sm text-muted-foreground">
+            Create or join a group to start splitting expenses.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

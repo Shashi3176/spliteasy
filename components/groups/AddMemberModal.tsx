@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 
 type UserSearchResult = {
   _id: string;
@@ -53,6 +54,7 @@ export default function AddMemberModal({
   const [error, setError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+  const { toast } = useToast();
 
   // Track the active search to abort stale network requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -178,9 +180,12 @@ export default function AddMemberModal({
 
       onOpenChange(false);
       resetLocalState();
+      toast({ title: 'Member added', description: foundUser.name });
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add member');
+      const message = err instanceof Error ? err.message : 'Failed to add member';
+      setError(message);
+      toast({ title: 'Member not added', description: message, variant: 'destructive' });
     } finally {
       setIsAdding(false);
     }
@@ -196,8 +201,8 @@ export default function AddMemberModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <form onSubmit={handleSearch} className="flex gap-2">
+         <div className="space-y-4">
+           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
             <Input
               type="email"
               value={email}

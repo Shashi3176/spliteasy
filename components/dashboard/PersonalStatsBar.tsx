@@ -1,5 +1,6 @@
 'use client';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Card, CardContent } from '@/components/ui/card';
 
 type PersonalStats = {
@@ -25,7 +26,8 @@ export default function PersonalStatsBar({ stats }: { stats: PersonalStats }) {
         : 'Settled';
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <ErrorBoundary>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <Card>
         <CardContent className="pt-6">
           <div className="text-2xl font-bold text-red-600">₹{stats.totalYouOwe.toFixed(2)}</div>
@@ -51,5 +53,6 @@ export default function PersonalStatsBar({ stats }: { stats: PersonalStats }) {
         </CardContent>
       </Card>
     </div>
+    </ErrorBoundary>
   );
 }

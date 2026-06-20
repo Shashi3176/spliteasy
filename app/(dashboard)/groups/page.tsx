@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -111,7 +112,8 @@ export default function GroupsPage() {
       )}
 
       {!isLoading && !fetchError && groups.length > 0 && (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <ErrorBoundary>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {groups.map((group) => (
             <Link key={group._id} href={`/groups/${group._id}`}>
               <Card className="h-full transition-colors hover:bg-muted/50">
@@ -138,6 +140,7 @@ export default function GroupsPage() {
             </Link>
           ))}
         </div>
+        </ErrorBoundary>
       )}
     </div>
   );

@@ -30,6 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
 
 const createGroupSchema = z.object({
   name: z.string().min(2, 'Group name must be at least 2 characters'),
@@ -60,6 +61,7 @@ export default function CreateGroupModal({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const { toast } = useToast();
 
   function handleOpenChange(nextOpen: boolean) {
     onOpenChange(nextOpen);
@@ -88,9 +90,12 @@ export default function CreateGroupModal({
 
       onOpenChange(false);
       form.reset();
+      toast({ title: 'Group created', description: values.name });
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create group');
+      const message = err instanceof Error ? err.message : 'Failed to create group';
+      setError(message);
+      toast({ title: 'Group not created', description: message, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -98,7 +103,7 @@ export default function CreateGroupModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Group</DialogTitle>
           <DialogDescription>Add a new group to start splitting expenses.</DialogDescription>

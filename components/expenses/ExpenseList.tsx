@@ -1,12 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { Receipt, Utensils, Plane, Hotel } from 'lucide-react';
+import { Receipt, Utensils, Plane, Hotel, Search } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import CategoryFilterTabs from '@/components/expenses/CategoryFilterTabs';
 import EmptyExpensesState from '@/components/expenses/EmptyExpensesState';
 import ExpenseSummaryBar from '@/components/expenses/ExpenseSummaryBar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Trie } from '@/lib/trie';
 
 type Expense = {
   _id: string;
@@ -66,10 +69,34 @@ export default function ExpenseList({ groupId, onExpenseClick, onAddExpenseClick
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'food' | 'travel' | 'accommodation' | 'other'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  const searchFilteredExpenses = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return expenses;
+    }
+
+    const descriptionTrie = new Trie<Expense>();
+    const payerTrie = new Trie<Expense>();
+
+    for (const expense of expenses) {
+      descriptionTrie.insert(expense.description, expense);
+      const payerName = getPaidByName(expense.paidBy);
+      payerTrie.insert(payerName, expense);
+    }
+
+    const descriptionMatches = new Set(descriptionTrie.search(searchQuery));
+    const payerMatches = new Set(payerTrie.search(searchQuery));
+
+    return expenses.filter(
+      (expense) => descriptionMatches.has(expense) || payerMatches.has(expense)
+    );
+  }, [expenses, searchQuery]);
 
   const filteredExpenses = selectedCategory === 'all'
-    ? expenses
-    : expenses.filter((expense) => expense.category === selectedCategory);
+    ? searchFilteredExpenses
+    : searchFilteredExpenses.filter((expense) => expense.category === selectedCategory);
 
   const totalGroupSpend = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const youPaid = expenses
@@ -94,6 +121,8 @@ export default function ExpenseList({ groupId, onExpenseClick, onAddExpenseClick
       }
     } catch {
       // Silently fail
+    } finally {
+      setIsInitialLoad(false);
     }
   }, [groupId]);
 
@@ -110,7 +139,26 @@ export default function ExpenseList({ groupId, onExpenseClick, onAddExpenseClick
   return (
     <Card>
       <CardContent className="pt-6">
-        {expenses.length === 0 ? (
+        {isInitialLoad ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <Skeleton className="h-10 w-full max-w-sm" />
+              <Skeleton className="h-9 w-full max-w-md" />
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          </div>
+        ) : expenses.length === 0 ? (
           <EmptyExpensesState variant="no-expenses" onAddExpenseClick={onAddExpenseClick} />
         ) : (
           <>
@@ -121,20 +169,32 @@ export default function ExpenseList({ groupId, onExpenseClick, onAddExpenseClick
               netBalance={netBalance}
               currency="INR"
             />
-            <CategoryFilterTabs selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+               <div className="relative flex-1 max-w-sm">
+                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                 <Input
+                   type="text"
+                   placeholder="Search expenses..."
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   className="pl-8"
+                 />
+               </div>
+               <CategoryFilterTabs selectedCategory={selectedCategory} onCategoryChange={setSelectedCategory} />
+             </div>
             {filteredExpenses.length === 0 ? (
               <EmptyExpensesState variant="no-results" />
             ) : (
-              <div className="space-y-4">
-                {filteredExpenses.map((expense) => {
+               <div className="space-y-4">
+                 {filteredExpenses.map((expense, index) => {
                   const Icon = getCategoryIcon(expense.category);
                   const userSplit = expense.splitAmong.find((s) => s.userId._id === currentUserId);
                   const hasUserSplit = userSplit !== undefined;
 
-                  return (
+                   return (
                     <div
                       key={expense._id}
-                      className="border-b pb-4 last:border-0 cursor-pointer hover:bg-muted/50 transition-colors rounded-lg p-2"
+                      className={`border-b pb-4 last:border-0 cursor-pointer hover:bg-muted/50 transition-colors rounded-lg p-2 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300 ${index < 6 ? `motion-safe:delay-[${index * 20}ms]` : ''}`}
                       onClick={() => handleRowClick(expense)}
                     >
                       <div className="flex justify-between items-start">

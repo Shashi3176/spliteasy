@@ -5,6 +5,7 @@ import { useState } from 'react';
 import MarkPaidDialog from './MarkPaidDialog';
 import SettlementCard, { SettlementStatus } from './SettlementCard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EmptySettlementState from './EmptySettlementState';
 
 type Settlement = {
   _id: string;
@@ -47,7 +48,7 @@ export default function SettlementHistory({ history, onRefetch }: SettlementHist
     <div>
       <div className="mb-4">
         <Tabs value={activeFilter} onValueChange={(v) => setActiveFilter(v as typeof activeFilter)}>
-          <TabsList>
+          <TabsList className="w-full md:w-auto overflow-x-auto">
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="pending">Pending</TabsTrigger>
             <TabsTrigger value="completed">Completed</TabsTrigger>
@@ -55,9 +56,9 @@ export default function SettlementHistory({ history, onRefetch }: SettlementHist
         </Tabs>
       </div>
 
-      {filteredHistory.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No settlements in this category yet</p>
-      ) : (
+{filteredHistory.length === 0 ? (
+          <EmptySettlementState />
+        ) : (
         <div className="space-y-3">
           {filteredHistory.map((item) => (
             <SettlementCard

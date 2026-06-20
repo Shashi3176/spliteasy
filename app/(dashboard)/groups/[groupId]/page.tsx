@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -19,8 +19,11 @@ import SettlementHistory from '@/components/settlements/SettlementHistory';
 import DebtGraph from '@/components/settlements/DebtGraph';
 import SettledUpState from '@/components/settlements/SettledUpState';
 import GroupAnalytics from '@/components/analytics/GroupAnalytics';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import ActivityFeed from '@/components/activity/ActivityFeed';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToast } from '@/hooks/use-toast';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 type GroupMember = {
   userId: {
@@ -52,6 +55,7 @@ export default function GroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { toast } = useToast();
   const [group, setGroup] = useState<Group | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [errorState, setErrorState] = useState<'not-found' | 'unauthorized' | 'generic' | null>(null);
@@ -127,7 +131,7 @@ export default function GroupDetailPage() {
     };
   }, [groupId]);
 
-  async function fetchSettlements() {
+  const fetchSettlements = useCallback(async () => {
     if (!groupId) {
       return;
     }
@@ -141,11 +145,15 @@ export default function GroupDetailPage() {
     } catch {
       // Silently fail
     }
-  }
+  }, [groupId]);
 
   useEffect(() => {
-    fetchSettlements();
-  }, [groupId]);
+    const timeoutId = setTimeout(() => {
+      fetchSettlements();
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
+  }, [fetchSettlements]);
 
   const refetchGroup = async () => {
     if (!groupId) {
@@ -172,12 +180,23 @@ export default function GroupDetailPage() {
   };
 
   const handleRemoveMember = async (userId: string) => {
-    const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, {
-      method: 'DELETE',
-    });
+    try {
+      const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json().catch(() => ({}));
 
-    if (response.ok) {
-      await refetchGroup();
+      if (response.ok) {
+        await refetchGroup();
+        toast({ title: 'Member removed' });
+        return;
+      }
+
+      const message = typeof data.error === 'string' ? data.error : 'Failed to remove member';
+      toast({ title: 'Member not removed', description: message, variant: 'destructive' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to remove member';
+      toast({ title: 'Member not removed', description: message, variant: 'destructive' });
     }
   };
 
@@ -188,7 +207,12 @@ export default function GroupDetailPage() {
 
     if (response.ok) {
       router.push('/groups');
+      return;
     }
+
+    const data = await response.json().catch(() => ({}));
+    const message = typeof data.error === 'string' ? data.error : 'Failed to delete group';
+    throw new Error(message);
   };
 
   if (!isLoading && errorState === 'not-found') {
@@ -259,158 +283,177 @@ export default function GroupDetailPage() {
         />
       </aside>
 
-      <Tabs defaultValue="expenses" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="expenses">Expenses</TabsTrigger>
-          <TabsTrigger value="balances">Balances</TabsTrigger>
-          <TabsTrigger value="settlements">Settlements</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-        </TabsList>
+       <Tabs defaultValue="expenses" className="space-y-4">
+         <TabsList className="w-full md:w-auto overflow-x-auto">
+           <TabsTrigger value="expenses">Expenses</TabsTrigger>
+           <TabsTrigger value="balances">Balances</TabsTrigger>
+           <TabsTrigger value="settlements">Settlements</TabsTrigger>
+           <TabsTrigger value="activity">Activity</TabsTrigger>
+           <TabsTrigger value="analytics">Analytics</TabsTrigger>
+         </TabsList>
 
         <TabsContent value="expenses" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-semibold">Expenses</h3>
-              <p className="text-sm text-muted-foreground">Track and manage group expenses</p>
-            </div>
-            <Button onClick={() => setAddExpenseOpen(true)}>
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Add Expense
-            </Button>
-          </div>
-
-          <ExpenseList
-            key={expenseKey}
-            groupId={groupId}
-            onExpenseClick={(expense) => {
-              setSelectedExpenseId(expense._id);
-              setDetailModalOpen(true);
-            }}
-            onAddExpenseClick={() => setAddExpenseOpen(true)}
-          />
-          <ExpenseDetailModal
-            expenseId={selectedExpenseId}
-            open={detailModalOpen}
-            onOpenChange={setDetailModalOpen}
-            canEdit={group?.createdBy._id === currentUserId || myRole === 'admin'}
-            onEdit={(expense) => {
-              setExpenseForEdit({
-                _id: expense._id,
-                description: expense.description,
-                amount: expense.amount,
-                category: expense.category,
-                date: expense.date,
-                paidBy: expense.paidBy._id,
-                splitAmong: expense.splitAmong.map((s) => ({
-                  userId: s.userId._id,
-                  amount: s.amount,
-                })),
-              });
-              setDetailModalOpen(false);
-              setAddExpenseOpen(true);
-            }}
-            onDeleted={() => {
-              setExpenseKey((k) => k + 1);
-            }}
-          />
-          <AddExpenseModal
-            open={addExpenseOpen}
-            onOpenChange={(open) => {
-              setAddExpenseOpen(open);
-              if (!open) {
-                setExpenseForEdit(null);
-              }
-            }}
-            groupId={groupId}
-            groupMembers={group.members.map((m) => ({
-              userId: m.userId._id,
-              name: m.userId.name || m.userId.email || 'Unknown',
-              avatar: m.userId.avatar,
-            }))}
-            currentUserId={currentUserId}
-            onSuccess={() => {
-              setExpenseKey((k) => k + 1);
-              setExpenseForEdit(null);
-            }}
-            existingExpense={expenseForEdit}
-          />
-        </TabsContent>
-
-        <TabsContent value="balances">
-          <BalancesView
-            balances={
-              settlementsData?.balances.map((b) => {
-                const member = group?.members.find((m) => m.userId._id === b.userId)?.userId;
-                return {
-                  userId: b.userId,
-                  name: member?.name || member?.email || 'Unknown',
-                  avatar: member?.avatar,
-                  netBalance: b.amount,
-                };
-              }) || []
-            }
-          />
-        </TabsContent>
-
-        <TabsContent value="settlements">
-          {settlementsData ? (
-            allSettled ? (
-              <SettledUpState />
-            ) : (
-              <div className="space-y-6">
-                <DebtGraph
-                  groupMembers={group?.members.map((m) => ({
-                    userId: m.userId._id,
-                    name: m.userId.name || m.userId.email || 'Unknown',
-                    avatar: m.userId.avatar,
-                  })) || []}
-                  beforeEdges={settlementsData.beforeEdges}
-                  afterEdges={
-                    settlementsData.optimal && 'skipped' in settlementsData.optimal
-                      ? settlementsData.greedy.transactions
-                      : settlementsData.optimal && 'transactions' in settlementsData.optimal
-                        ? settlementsData.optimal.transactions
-                        : settlementsData.greedy.transactions
-                  }
-                />
-
-                <SettlementSuggestions
-                  groupId={groupId}
-                  greedy={settlementsData.greedy}
-                  optimal={settlementsData.optimal}
-                  groupMembers={group?.members.map((m) => ({
-                    userId: m.userId._id,
-                    name: m.userId.name || m.userId.email || 'Unknown',
-                    avatar: m.userId.avatar,
-                  })) || []}
-                  onSettlementsSaved={fetchSettlements}
-                  balancesCount={settlementsData.balances.length}
-                />
-
-                {settlementsData.history && settlementsData.history.length > 0 ? (
-                  <SettlementHistory history={settlementsData.history} onRefetch={fetchSettlements} />
-                ) : null}
+          <ErrorBoundary>
+            <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold">Expenses</h3>
+                  <p className="text-sm text-muted-foreground">Track and manage group expenses</p>
+                </div>
+                <Button onClick={() => setAddExpenseOpen(true)}>
+                  <PlusIcon className="h-4 w-4 mr-2" />
+                  Add Expense
+                </Button>
               </div>
-            )
-          ) : (
-            <Card>
+
+              <ExpenseList
+                key={expenseKey}
+                groupId={groupId}
+                onExpenseClick={(expense) => {
+                  setSelectedExpenseId(expense._id);
+                  setDetailModalOpen(true);
+                }}
+                onAddExpenseClick={() => setAddExpenseOpen(true)}
+              />
+              <ExpenseDetailModal
+                expenseId={selectedExpenseId}
+                open={detailModalOpen}
+                onOpenChange={setDetailModalOpen}
+                canEdit={group?.createdBy._id === currentUserId || myRole === 'admin'}
+                onEdit={(expense) => {
+                  setExpenseForEdit({
+                    _id: expense._id,
+                    description: expense.description,
+                    amount: expense.amount,
+                    category: expense.category,
+                    date: expense.date,
+                    paidBy: expense.paidBy._id,
+                    splitAmong: expense.splitAmong.map((s) => ({
+                      userId: s.userId._id,
+                      amount: s.amount,
+                    })),
+                  });
+                  setDetailModalOpen(false);
+                  setAddExpenseOpen(true);
+                }}
+                onDeleted={() => {
+                  setExpenseKey((k) => k + 1);
+                }}
+              />
+              <AddExpenseModal
+                open={addExpenseOpen}
+                onOpenChange={(open) => {
+                  setAddExpenseOpen(open);
+                  if (!open) {
+                    setExpenseForEdit(null);
+                  }
+                }}
+                groupId={groupId}
+                groupMembers={group.members.map((m) => ({
+                  userId: m.userId._id,
+                  name: m.userId.name || m.userId.email || 'Unknown',
+                  avatar: m.userId.avatar,
+                }))}
+                currentUserId={currentUserId}
+                onSuccess={() => {
+                  setExpenseKey((k) => k + 1);
+                  setExpenseForEdit(null);
+                }}
+                existingExpense={expenseForEdit}
+              />
+            </div>
+          </ErrorBoundary>
+        </TabsContent>
+
+<TabsContent value="balances">
+          <ErrorBoundary>
+            <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
+              <BalancesView
+                balances={
+                  settlementsData?.balances.map((b) => {
+                    const member = group?.members.find((m) => m.userId._id === b.userId)?.userId;
+                    return {
+                      userId: b.userId,
+                      name: member?.name || member?.email || 'Unknown',
+                      avatar: member?.avatar,
+                      netBalance: b.amount,
+                    };
+                  }) || []
+                }
+              />
+            </div>
+          </ErrorBoundary>
+        </TabsContent>
+
+<TabsContent value="settlements">
+          <ErrorBoundary>
+            <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
+              {settlementsData ? (
+              allSettled ? (
+                <SettledUpState />
+              ) : (
+                <div className="space-y-6">
+                  <DebtGraph
+                    groupMembers={group?.members.map((m) => ({
+                      userId: m.userId._id,
+                      name: m.userId.name || m.userId.email || 'Unknown',
+                      avatar: m.userId.avatar,
+                    })) || []}
+                    beforeEdges={settlementsData.beforeEdges}
+                    afterEdges={
+                      settlementsData.optimal && 'skipped' in settlementsData.optimal
+                        ? settlementsData.greedy.transactions
+                        : settlementsData.optimal && 'transactions' in settlementsData.optimal
+                          ? settlementsData.optimal.transactions
+                          : settlementsData.greedy.transactions
+                    }
+                  />
+
+                  <SettlementSuggestions
+                    groupId={groupId}
+                    greedy={settlementsData.greedy}
+                    optimal={settlementsData.optimal}
+                    groupMembers={group?.members.map((m) => ({
+                      userId: m.userId._id,
+                      name: m.userId.name || m.userId.email || 'Unknown',
+                      avatar: m.userId.avatar,
+                    })) || []}
+                    onSettlementsSaved={fetchSettlements}
+                    balancesCount={settlementsData.balances.length}
+                  />
+
+                  {settlementsData.history && settlementsData.history.length > 0 ? (
+                    <SettlementHistory history={settlementsData.history} onRefetch={fetchSettlements} />
+                  ) : null}
+                </div>
+              )
+            ) : (
+              <Card>
               <CardHeader>
                 <CardTitle>Settlements</CardTitle>
                 <CardDescription>Loading suggestions...</CardDescription>
               </CardHeader>
             </Card>
-          )}
-        </TabsContent>
+            )}
+          </div>
+        </ErrorBoundary>
+      </TabsContent>
 
-        <TabsContent value="activity">
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity</CardTitle>
-              <CardDescription>Group activity coming soon</CardDescription>
-            </CardHeader>
-            <CardContent>Group activity coming soon</CardContent>
-          </Card>
-        </TabsContent>
+      <TabsContent value="activity">
+        <ErrorBoundary>
+          <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
+            <ActivityFeed groupId={groupId as string} />
+          </div>
+        </ErrorBoundary>
+      </TabsContent>
+
+      <TabsContent value="analytics">
+        <ErrorBoundary>
+          <div className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1 motion-safe:duration-200">
+            <GroupAnalytics groupId={groupId} currency={group.currency} />
+          </div>
+        </ErrorBoundary>
+      </TabsContent>
       </Tabs>
     </div>
   );

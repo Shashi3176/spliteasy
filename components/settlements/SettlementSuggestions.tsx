@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useToast } from '@/hooks/use-toast';
 import SettlementCard from '@/components/settlements/SettlementCard';
 
 type Transaction = {
@@ -59,6 +60,7 @@ export default function SettlementSuggestions({
   const [selectedMode, setSelectedMode] = useState<'greedy' | 'optimal'>('greedy');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const selectedTransactions = selectedMode === 'greedy' ? greedy.transactions : 'skipped' in optimal ? [] : optimal.transactions;
   const selectedCount = selectedMode === 'greedy' ? greedy.count : 'skipped' in optimal ? 0 : optimal.count;
@@ -92,12 +94,17 @@ export default function SettlementSuggestions({
 
       if (response.ok) {
         onSettlementsSaved();
+        toast({ title: 'Settlements saved', description: `${selectedCount} transactions saved` });
       } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to save settlements');
+        const data = await response.json().catch(() => ({}));
+        const message = typeof data.error === 'string' ? data.error : 'Failed to save settlements';
+        setError(message);
+        toast({ title: 'Settlements not saved', description: message, variant: 'destructive' });
       }
     } catch {
-      setError('Failed to save settlements');
+      const message = 'Failed to save settlements';
+      setError(message);
+      toast({ title: 'Settlements not saved', description: message, variant: 'destructive' });
     } finally {
       setIsSaving(false);
     }

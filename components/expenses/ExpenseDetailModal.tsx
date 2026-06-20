@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { toast } from 'sonner';
 import { Receipt, Utensils, Plane, Hotel } from 'lucide-react';
 import {
   Dialog,
@@ -28,6 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 
 type Expense = {
   _id: string;
@@ -101,6 +101,7 @@ export default function ExpenseDetailModal({ expenseId, open, onOpenChange, canE
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const fetchExpense = useCallback(async () => {
     if (!expenseId) {
@@ -152,7 +153,7 @@ export default function ExpenseDetailModal({ expenseId, open, onOpenChange, canE
       });
 
       if (response.ok) {
-        toast.success('Expense deleted');
+        toast({ title: 'Expense deleted' });
         onOpenChange(false);
         onDeleted?.();
       } else {
@@ -168,12 +169,12 @@ export default function ExpenseDetailModal({ expenseId, open, onOpenChange, canE
           }
         }
         setDeleteError(message);
-        toast.error("Couldn't delete expense", { description: message });
+        toast({ title: "Couldn't delete expense", description: message, variant: 'destructive' });
       }
     } catch {
       const message = 'Failed to delete expense. Please try again.';
       setDeleteError(message);
-      toast.error("Couldn't delete expense", { description: message });
+      toast({ title: "Couldn't delete expense", description: message, variant: 'destructive' });
     } finally {
       setIsDeleting(false);
     }

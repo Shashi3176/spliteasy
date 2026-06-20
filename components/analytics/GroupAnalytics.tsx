@@ -6,8 +6,12 @@ import type { PieLabelRenderProps } from 'recharts';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import TopSpenderCard from '@/components/analytics/TopSpenderCard';
+import SpendingOverTimeChart, { type TimeSeriesPoint } from '@/components/analytics/SpendingOverTimeChart';
 
 type PersonSpend = {
   userId: string;
@@ -37,10 +41,7 @@ const COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7'
 
 function formatMoney(amount: number, currency: string) {
   try {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency,
-    }).format(amount);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency }).format(amount);
   } catch {
     return `${currency} ${amount.toFixed(2)}`;
   }
@@ -52,23 +53,13 @@ function formatCategory(category: string) {
 
 function getInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-
-  if (parts.length === 0) {
-    return 'U';
-  }
-
-  if (parts.length === 1) {
-    return parts[0].slice(0, 2).toUpperCase();
-  }
-
+  if (parts.length === 0) return 'U';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
 function CategoryPieChart({ data, currency }: { data: CategorySpend[]; currency: string }) {
-  const chartData = data.map((item, index) => ({
-    ...item,
-    color: COLORS[index % COLORS.length],
-  }));
+  const chartData = data.map((item, index) => ({ ...item, color: COLORS[index % COLORS.length] }));
 
   if (chartData.length === 0) {
     return (
@@ -91,7 +82,7 @@ function CategoryPieChart({ data, currency }: { data: CategorySpend[]; currency:
           innerRadius={64}
           outerRadius={100}
           paddingAngle={2}
-          label={(entry: PieLabelRenderProps) => `${(entry.percent * 100).toFixed(0)}%`}
+          label={(entry: PieLabelRenderProps) => `${((entry.percent ?? 0) * 100).toFixed(0)}%`}
         >
           {chartData.map((entry) => (
             <Cell key={entry.category} fill={entry.color} />
@@ -101,7 +92,6 @@ function CategoryPieChart({ data, currency }: { data: CategorySpend[]; currency:
           formatter={(value, _name, item) => {
             const payload = item.payload as CategorySpend & { percent?: number };
             const percent = payload?.percent ?? 0;
-
             return [`${formatMoney(Number(value), currency)} (${(percent * 100).toFixed(1)}%)`, 'Total'];
           }}
         />
@@ -117,7 +107,6 @@ function CategoryPieChart({ data, currency }: { data: CategorySpend[]; currency:
 
 function PerPersonBreakdown({ items, currency }: { items: PersonSpend[]; currency: string }) {
   const maxPaid = items[0]?.totalPaid ?? 0;
-
   if (items.length === 0) {
     return (
       <div className="flex min-h-[180px] flex-col items-center justify-center text-center text-sm text-muted-foreground">
@@ -131,7 +120,6 @@ function PerPersonBreakdown({ items, currency }: { items: PersonSpend[]; currenc
     <div className="space-y-4">
       {items.map((item) => {
         const width = maxPaid > 0 ? Math.max((item.totalPaid / maxPaid) * 100, 6) : 0;
-
         return (
           <div key={item.userId} className="space-y-2">
             <div className="flex items-center justify-between gap-4 text-sm">
@@ -145,10 +133,7 @@ function PerPersonBreakdown({ items, currency }: { items: PersonSpend[]; currenc
               <span className="shrink-0 font-semibold">{formatMoney(item.totalPaid, currency)}</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${width}%` }}
-              />
+              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${width}%` }} />
             </div>
           </div>
         );
@@ -161,34 +146,41 @@ export default function GroupAnalytics({ groupId, currency }: GroupAnalyticsProp
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [groupBy, setGroupBy] = useState<'week' | 'month'>('month');
+
+  const startDateId = `sd-${groupId}`;
+  const endDateId = `ed-${groupId}`;
 
   useEffect(() => {
     let ignore = false;
 
     async function loadAnalytics() {
+      setIsLoading(true);
+      setError(null);
+
       try {
-        const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}/analytics`);
+        const query = new URLSearchParams();
+        if (startDate) query.set('startDate', startDate);
+        if (endDate) query.set('endDate', endDate);
+        query.set('groupBy', groupBy);
+
+        const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}/analytics?${query.toString()}`);
 
         if (!response.ok) {
-          if (!ignore) {
-            setError('Unable to load analytics');
-          }
+          if (!ignore) setError('Unable to load analytics');
           return;
         }
 
-        const data: AnalyticsResponse = await response.json();
-
+        const data: AnalyticsResponse & { timeSeries?: TimeSeriesPoint[] } = await response.json();
         if (!ignore) {
           setAnalytics(data);
         }
       } catch {
-        if (!ignore) {
-          setError('Unable to load analytics');
-        }
+        if (!ignore) setError('Unable to load analytics');
       } finally {
-        if (!ignore) {
-          setIsLoading(false);
-        }
+        if (!ignore) setIsLoading(false);
       }
     }
 
@@ -197,13 +189,15 @@ export default function GroupAnalytics({ groupId, currency }: GroupAnalyticsProp
     return () => {
       ignore = true;
     };
-  }, [groupId]);
+  }, [groupId, startDate, endDate, groupBy]);
 
   const sortedPerPersonSpend = useMemo(() => {
     return [...(analytics?.perPersonSpend ?? [])].sort(
       (a, b) => b.totalPaid - a.totalPaid || a.name.localeCompare(b.name)
     );
   }, [analytics?.perPersonSpend]);
+
+  const timeSeriesData = useMemo(() => analytics?.timeSeries ?? [], [analytics?.timeSeries]);
 
   if (isLoading) {
     return (
@@ -244,6 +238,14 @@ export default function GroupAnalytics({ groupId, currency }: GroupAnalyticsProp
             </CardContent>
           </Card>
         </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-5 w-40" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-[300px] w-full" />
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -298,6 +300,38 @@ export default function GroupAnalytics({ groupId, currency }: GroupAnalyticsProp
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Spending Over Time</CardTitle>
+          <CardDescription>Filter and review spending trends.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 flex flex-wrap items-end gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor={startDateId}>Start date</Label>
+              <Input id={startDateId} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor={endDateId}>End date</Label>
+              <Input id={endDateId} type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <div className="grid gap-2">
+              <Label>Grouping</Label>
+              <Select value={groupBy} onValueChange={(value) => setGroupBy(value as 'week' | 'month')}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Group by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="month">Month</SelectItem>
+                  <SelectItem value="week">Week</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <SpendingOverTimeChart data={timeSeriesData} currency={currency} />
+        </CardContent>
+      </Card>
     </div>
   );
 }

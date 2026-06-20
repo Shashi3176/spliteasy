@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useEffect, type FormEvent } from 'react';
-import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -17,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { calculateEqualSplit, calculatePercentageSplit, calculateExactSplit, validateSplitSum } from '@/lib/splitCalculator';
+import { useToast } from '@/hooks/use-toast';
 
 type GroupMember = {
   userId: string;
@@ -76,6 +76,7 @@ export default function AddExpenseModal({
 
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -217,9 +218,10 @@ export default function AddExpenseModal({
       }
 
       if (isEditing) {
-        toast.success('Expense updated');
+        toast({ title: 'Expense updated' });
       } else {
-        toast.success('Expense added', {
+        toast({
+          title: 'Expense added',
           description: `${description.trim()} - ₹${numericAmount.toFixed(2)}`,
         });
       }
@@ -229,8 +231,10 @@ export default function AddExpenseModal({
     } catch (err) {
       const message = err instanceof Error ? err.message : `Failed to ${isEditing ? 'update' : 'create'} expense`;
       setError(message);
-      toast.error('Something went wrong', {
+      toast({
+        title: isEditing ? 'Expense not updated' : 'Expense not added',
         description: message,
+        variant: 'destructive',
       });
     } finally {
       setIsSubmitting(false);
@@ -245,7 +249,7 @@ export default function AddExpenseModal({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Edit Expense' : 'Add Expense'}</DialogTitle>
           <DialogDescription>
@@ -266,7 +270,7 @@ export default function AddExpenseModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="amount">Amount</Label>
               <Input
@@ -334,7 +338,7 @@ export default function AddExpenseModal({
           <div className="space-y-2">
             <Label>Split Mode</Label>
             <Tabs value={splitMode} onValueChange={(v) => setSplitMode(v as typeof splitMode)}>
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-3 sm:grid-cols-3">
                 <TabsTrigger value="equal">Equal</TabsTrigger>
                 <TabsTrigger value="percentage">Percentage</TabsTrigger>
                 <TabsTrigger value="exact">Exact Amount</TabsTrigger>
