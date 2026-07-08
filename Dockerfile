@@ -9,6 +9,9 @@ COPY . .
 RUN npm run compile:cpp
 RUN npm run build
 
+CMD ["hostname", "0.0.0.0", "next", "start", "-p", "3000"]
+
+ENV HOSTNAME="0.0.0.0"
 ENV PORT=7860
 EXPOSE 7860
-CMD ["npm", "start"]
+CMD ["npm", "run", "start"]
