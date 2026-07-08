@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 7860 -H 0.0.0.0",
     "lint": "eslint",
     "compile:cpp": "g++ -O2 -std=c++17 -o lib/algorithms/cpp/greedy lib/algorithms/cpp/greedy.cpp && g++ -O2 -std=c++17 -o lib/algorithms/cpp/optimal lib/algorithms/cpp/optimal.cpp",
     "predev": "npm run compile:cpp",
