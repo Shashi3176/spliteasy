@@ -1,0 +1,14 @@
+FROM node:20-bookworm-slim
+
+RUN apt-get update && apt-get install -y g++ build-essential && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run compile:cpp
+RUN npm run build
+
+ENV PORT=7860
+EXPOSE 7860
+CMD ["npm", "start"]
