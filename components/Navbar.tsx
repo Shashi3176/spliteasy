@@ -12,7 +12,6 @@ import { LayoutDashboard, Users, User, Moon, Sun, LogOut } from 'lucide-react';
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/groups', label: 'Groups', icon: Users },
-  { href: '/profile', label: 'Profile', icon: User },
 ];
 
 export default function Navbar() {
